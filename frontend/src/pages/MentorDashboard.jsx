@@ -77,8 +77,8 @@ export default function MentorDashboard() {
         api.get('/mentor/income/'),
       ]);
       setUser(userR.data);
-      setBookingRequests(bookR.data || []);
-      setActiveSessions(sessR.data || []);
+      setBookingRequests(bookR.data.results || bookR.data || []);
+      setActiveSessions(sessR.data.results || sessR.data || []);
       if (profR.data) setProfile({ skills:profR.data.skills||'', price_per_session:profR.data.price_per_session||75000, bio:profR.data.bio||'', education:profR.data.education||'', available_slots:profR.data.available_slots||[] });
       setReviews(revR.data || []);
       setEarnings(earnR.data || { total:0, available:0, withdrawn:0, unpaid_sessions:0 });

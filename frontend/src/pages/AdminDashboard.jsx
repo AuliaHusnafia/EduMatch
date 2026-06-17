@@ -103,12 +103,12 @@ export default function AdminDashboard() {
         api.get('/admin/withdraw-requests/'),
       ]);
       setStats(statsR.data || {});
-      setPendingMentors(pendR.data || []);
-      setAllMentors(mentR.data || []);
-      setAllMentees(menteR.data || []);
-      setAllBookings(bookR.data || []);
-      setAllPayments(payR.data || []);
-      setWithdrawals(wdR.data || []);
+      setPendingMentors(pendR.data.results || pendR.data || []);
+      setAllMentors(mentR.data.results || mentR.data || []);
+      setAllMentees(menteR.data.results || menteR.data || []);
+      setAllBookings(bookR.data.results || bookR.data || []);
+      setAllPayments(payR.data.results || payR.data || []);
+      setWithdrawals(wdR.data.results || wdR.data || []);
       
       // Panggil fetchTransactions
       await fetchTransactions();
@@ -119,8 +119,9 @@ export default function AdminDashboard() {
   const fetchTransactions = async () => {
     try {
       const res = await api.get('/admin/transactions/');
-      setTransactions(res.data || []);
-      const paid = (res.data || []).filter(t => t.status === 'Berhasil');
+      const data = res.data.results || res.data || [];
+      setTransactions(data);
+      const paid = data.filter(t => t.status === 'Berhasil');
       const total = paid.length;
       const revenue = paid.reduce((sum, t) => sum + (t.nominal || 0), 0);
       const commission = paid.reduce((sum, t) => sum + (t.komisi || 0), 0);

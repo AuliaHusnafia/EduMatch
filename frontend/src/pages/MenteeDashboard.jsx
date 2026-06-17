@@ -87,7 +87,7 @@ export default function MenteeDashboard() {
     setLoading(true);
     try {
       const res = await api.get('/mentee/mentors/');
-      const data = Array.isArray(res.data) ? res.data : [];
+      const data = res.data.results || (Array.isArray(res.data) ? res.data : []);
       console.log('Mentors data dari API:', data); // Debug
       console.log('Jumlah mentor:', data.length); // Debug
       setMentors(data); 
@@ -99,7 +99,7 @@ export default function MenteeDashboard() {
   };
 
   const fetchMyBookings = async () => {
-    try { const r = await api.get('/mentee/my-bookings/'); setMyBookings(r.data || []); }
+    try { const r = await api.get('/mentee/bookings/'); setMyBookings(r.data.results || r.data || []); }
     catch (e) { console.error(e); }
   };
 
@@ -109,10 +109,11 @@ export default function MenteeDashboard() {
         api.get('/mentee/ongoing-sessions/'),
         api.get('/mentee/completed-sessions/')
       ]);
-      setOngoingSessions(a.data || []);
+      setOngoingSessions(a.data.results || a.data || []);
       
       // Tambahkan price ke completed sessions
-      const completedWithPrice = (b.data || []).map(session => ({
+      const bData = b.data.results || b.data || [];
+      const completedWithPrice = bData.map(session => ({
         ...session,
         price: session.price || 75000,
         invoice_amount: session.invoice_amount || session.price || 75000
@@ -162,8 +163,7 @@ export default function MenteeDashboard() {
   try {
     console.log('Processing payment for booking:', bookingId);
     
-    // PERBAIKI URL: gunakan 'pay-booking' bukan 'pay'
-    const response = await api.post(`/mentee/pay-booking/${bookingId}/`, {});
+    const response = await api.post(`/mentee/pay/${bookingId}/`, {});
     console.log('Payment response:', response.data);
     
     if (response.data.success) {
