@@ -27,6 +27,7 @@ class Booking(models.Model):
     
     def __str__(self):
         return f"{self.mentee_name} → {self.mentor_name} ({self.date})"
+<<<<<<< HEAD
     
     from django.db import models
 from users.models import User
@@ -57,6 +58,8 @@ class Booking(models.Model):
     
     def __str__(self):
         return f"{self.mentee_name} → {self.mentor_name} ({self.date})"
+=======
+>>>>>>> 6066eb4ca2e8b78243ba9b974896955f38765fbc
 
     class Meta:
         ordering = ['-created_at']

@@ -37,10 +37,17 @@ class MentorAvailableSlotsView(views.APIView):
         time = request.data.get('time')
         if not date or not time:
             return Response({'error': 'Tanggal dan waktu harus diisi'}, status=400)
+<<<<<<< HEAD
         
         if not profile.available_slots:
             profile.available_slots = []
         
+=======
+
+        if not profile.available_slots:
+            profile.available_slots = []
+
+>>>>>>> 6066eb4ca2e8b78243ba9b974896955f38765fbc
         new_slot = {'id': str(uuid.uuid4()), 'date': date, 'time': time}
         profile.available_slots.append(new_slot)
         profile.save()
