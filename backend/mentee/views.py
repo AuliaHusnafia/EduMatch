@@ -1,6 +1,5 @@
 from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
-from django.db.models import Q
 from users.models import User
 from mentors.models import MentorProfile
 from bookings.models import Booking

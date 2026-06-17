@@ -43,6 +43,13 @@ export default function MentorDashboard() {
   const [activeSessions, setActiveSessions] = useState([]);
   const [reviews, setReviews]               = useState([]);
   const [earnings, setEarnings]             = useState({ total:0, available:0, withdrawn:0, unpaid_sessions:0 });
+
+  const getList = (res) => {
+    if (!res || !res.data) return [];
+    if (res.data.results && Array.isArray(res.data.results)) return res.data.results;
+    if (Array.isArray(res.data)) return res.data;
+    return [];
+  };
   const [showSlotModal, setShowSlotModal]   = useState(false);
   const [newSlot, setNewSlot]               = useState({ date:'', time:'' });
   const [showMeetModal, setShowMeetModal]   = useState(false);
@@ -76,11 +83,12 @@ export default function MentorDashboard() {
         api.get('/mentor/reviews/'),
         api.get('/mentor/income/'),
       ]);
+
       setUser(userR.data);
-      setBookingRequests(bookR.data.results || bookR.data || []);
-      setActiveSessions(sessR.data.results || sessR.data || []);
+      setBookingRequests(getList(bookR));
+      setActiveSessions(getList(sessR));
       if (profR.data) setProfile({ skills:profR.data.skills||'', price_per_session:profR.data.price_per_session||75000, bio:profR.data.bio||'', education:profR.data.education||'', available_slots:profR.data.available_slots||[] });
-      setReviews(revR.data || []);
+      setReviews(getList(revR));
       setEarnings(earnR.data || { total:0, available:0, withdrawn:0, unpaid_sessions:0 });
     } catch (e) { showFlash('error', 'Gagal memuat data'); }
     finally { setLoading(false); }
@@ -137,13 +145,11 @@ export default function MentorDashboard() {
             });
             console.log('Complete session response:', response.data);
             
-            setSuccessMessage('Sesi selesai! Pendapatan akan masuk ke saldo Anda.');
-            await fetchAllData(); // Refresh data
-            setTimeout(() => setSuccessMessage(''), 3000);
+            showFlash('success', 'Sesi selesai! Pendapatan akan masuk ke saldo Anda.');
+            await fetchAll(); // Refresh data
         } catch (err) {
             console.error('Error:', err);
-            setErrorMessage(err.response?.data?.error || 'Gagal menyelesaikan sesi');
-            setTimeout(() => setErrorMessage(''), 3000);
+            showFlash('error', err.response?.data?.error || 'Gagal menyelesaikan sesi');
         }
     }
 };
@@ -159,12 +165,16 @@ export default function MentorDashboard() {
     } catch (e) { showFlash('error', e.response?.data?.error || 'Gagal mengajukan pencairan'); }
   };
 
-  const avgRating = reviews.length > 0 ? (reviews.reduce((s,r) => s + r.rating, 0) / reviews.length).toFixed(1) : '0.0';
+  const safeReviews = Array.isArray(reviews) ? reviews : [];
+  const safeActiveSessions = Array.isArray(activeSessions) ? activeSessions : [];
+  const safeBookingRequests = Array.isArray(bookingRequests) ? bookingRequests : [];
+
+  const avgRating = safeReviews.length > 0 ? (safeReviews.reduce((s,r) => s + r.rating, 0) / safeReviews.length).toFixed(1) : '0.0';
 
   // Pisahkan sesi berdasarkan status
-  const ongoingSess   = activeSessions.filter(s => ['accepted','ongoing'].includes(s.status));
-  const historySess   = activeSessions.filter(s => ['completed','paid'].includes(s.status));
-  const pendingCount  = bookingRequests.length;
+  const ongoingSess   = safeActiveSessions.filter(s => ['accepted','ongoing'].includes(s.status));
+  const historySess   = safeActiveSessions.filter(s => ['completed','paid'].includes(s.status));
+  const pendingCount  = safeBookingRequests.length;
   const ongoingCount  = ongoingSess.length;
 
   const S = {

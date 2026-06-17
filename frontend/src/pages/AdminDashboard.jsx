@@ -102,13 +102,21 @@ export default function AdminDashboard() {
         api.get('/admin/payments/'),
         api.get('/admin/withdraw-requests/'),
       ]);
+
+      const getList = (res) => {
+        if (!res || !res.data) return [];
+        if (res.data.results && Array.isArray(res.data.results)) return res.data.results;
+        if (Array.isArray(res.data)) return res.data;
+        return [];
+      };
+
       setStats(statsR.data || {});
-      setPendingMentors(pendR.data.results || pendR.data || []);
-      setAllMentors(mentR.data.results || mentR.data || []);
-      setAllMentees(menteR.data.results || menteR.data || []);
-      setAllBookings(bookR.data.results || bookR.data || []);
-      setAllPayments(payR.data.results || payR.data || []);
-      setWithdrawals(wdR.data.results || wdR.data || []);
+      setPendingMentors(getList(pendR));
+      setAllMentors(getList(mentR));
+      setAllMentees(getList(menteR));
+      setAllBookings(getList(bookR));
+      setAllPayments(getList(payR));
+      setWithdrawals(getList(wdR));
       
       // Panggil fetchTransactions
       await fetchTransactions();
@@ -119,7 +127,13 @@ export default function AdminDashboard() {
   const fetchTransactions = async () => {
     try {
       const res = await api.get('/admin/transactions/');
-      const data = res.data.results || res.data || [];
+      const getList = (r) => {
+        if (!r || !r.data) return [];
+        if (r.data.results && Array.isArray(r.data.results)) return r.data.results;
+        if (Array.isArray(r.data)) return r.data;
+        return [];
+      };
+      const data = getList(res);
       setTransactions(data);
       const paid = data.filter(t => t.status === 'Berhasil');
       const total = paid.length;

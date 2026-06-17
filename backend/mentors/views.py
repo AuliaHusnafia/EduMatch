@@ -1,4 +1,4 @@
-from rest_framework import generics, permissions, status, views
+from rest_framework import generics, permissions, status, views, exceptions
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -17,7 +17,7 @@ class MentorProfileView(generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         if self.request.user.role != 'mentor':
-            return Response({'error': 'Anda bukan mentor'}, status=403)
+            raise exceptions.PermissionDenied('Anda bukan mentor')
         serializer.save()
 
 class MentorAvailableSlotsView(views.APIView):

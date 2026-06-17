@@ -83,11 +83,18 @@ export default function MenteeDashboard() {
     } catch { localStorage.clear(); navigate('/login'); }
   };
 
+  const getList = (res) => {
+    if (!res || !res.data) return [];
+    if (res.data.results && Array.isArray(res.data.results)) return res.data.results;
+    if (Array.isArray(res.data)) return res.data;
+    return [];
+  };
+
   const fetchMentors = async () => {
     setLoading(true);
     try {
       const res = await api.get('/mentee/mentors/');
-      const data = res.data.results || (Array.isArray(res.data) ? res.data : []);
+      const data = getList(res);
       console.log('Mentors data dari API:', data); // Debug
       console.log('Jumlah mentor:', data.length); // Debug
       setMentors(data); 
@@ -99,7 +106,7 @@ export default function MenteeDashboard() {
   };
 
   const fetchMyBookings = async () => {
-    try { const r = await api.get('/mentee/bookings/'); setMyBookings(r.data.results || r.data || []); }
+    try { const r = await api.get('/mentee/bookings/'); setMyBookings(getList(r)); }
     catch (e) { console.error(e); }
   };
 
@@ -109,10 +116,10 @@ export default function MenteeDashboard() {
         api.get('/mentee/ongoing-sessions/'),
         api.get('/mentee/completed-sessions/')
       ]);
-      setOngoingSessions(a.data.results || a.data || []);
+      setOngoingSessions(getList(a));
       
       // Tambahkan price ke completed sessions
-      const bData = b.data.results || b.data || [];
+      const bData = getList(b);
       const completedWithPrice = bData.map(session => ({
         ...session,
         price: session.price || 75000,
