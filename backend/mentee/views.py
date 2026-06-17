@@ -1,127 +1,95 @@
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
-from rest_framework import status
+from django.db.models import Q
 from users.models import User
 from mentors.models import MentorProfile
 from bookings.models import Booking
+from .serializers import MentorListSerializer, MenteeBookingSerializer
 from datetime import datetime
 
+class MentorListView(generics.ListAPIView):
+    serializer_class = MentorListSerializer
+    permission_classes = [permissions.AllowAny]
+    filterset_fields = ['university']
+    search_fields = ['username', 'mentor_profile__skills', 'mentor_profile__bio']
 
-@api_view(['GET'])
-def list_mentors(request):
-    mentors = User.objects.filter(role='mentor', is_verified=True)
-    result = []
-    for mentor in mentors:
-        profile, _ = MentorProfile.objects.get_or_create(user=mentor)
-        result.append({
-            'id': mentor.id,
-            'username': mentor.username,
-            'email': mentor.email,
-            'university': mentor.university or '',
-            'skills': profile.skills or '',
-            'price_per_session': profile.price_per_session,
-            'bio': profile.bio or '',
-            'education': profile.education or '',
-            'available_slots': profile.available_slots or [],
-            'rating': 0,
-        })
-    return Response(result)
+    def get_queryset(self):
+        return User.objects.filter(role='mentor', is_verified=True).select_related('mentor_profile')
 
+class MentorDetailView(generics.RetrieveAPIView):
+    serializer_class = MentorListSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def mentor_detail(request, mentor_id):
-    try:
-        mentor = User.objects.get(id=mentor_id, role='mentor', is_verified=True)
-    except User.DoesNotExist:
-        return Response({'error': 'Mentor tidak ditemukan'}, status=404)
-
-    profile, _ = MentorProfile.objects.get_or_create(user=mentor)
-
-    available_slots = []
-    today = datetime.now().date()
-    for slot in profile.available_slots or []:
+    def get_object(self):
+        mentor_id = self.kwargs.get('mentor_id')
         try:
-            slot_date = datetime.strptime(slot.get('date', ''), '%Y-%m-%d').date()
-            if slot_date >= today:
-                available_slots.append(slot)
-        except Exception:
-            available_slots.append(slot)
+            return User.objects.get(id=mentor_id, role='mentor', is_verified=True)
+        except User.DoesNotExist:
+            return None
 
-    return Response({
-        'id': mentor.id,
-        'username': mentor.username,
-        'email': mentor.email,
-        'university': mentor.university or '',
-        'skills': profile.skills or '',
-        'price_per_session': profile.price_per_session,
-        'bio': profile.bio or '',
-        'education': profile.education or '',
-        'available_slots': available_slots,
-    })
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def book_mentor(request):
-    """Membuat booking ke mentor"""
-    try:
-        user = request.user
-        print(f"=== BOOKING REQUEST ===")
-        print(f"User: {user.username}, Role: {user.role}")
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance:
+            return Response({'error': 'Mentor tidak ditemukan'}, status=404)
+        serializer = self.get_serializer(instance)
+        data = serializer.data
         
-        # Cek role - HARUS mentee
-        if user.role != 'mentee':
-            return Response(
-                {'error': f'Hanya mentee yang bisa booking. Role kamu: {user.role}. Silakan login sebagai mentee.'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # Filter available slots for today and future
+        today = datetime.now().date()
+        slots = data.get('available_slots', [])
+        if slots:
+            filtered_slots = []
+            for slot in slots:
+                try:
+                    slot_date = datetime.strptime(slot.get('date', ''), '%Y-%m-%d').date()
+                    if slot_date >= today:
+                        filtered_slots.append(slot)
+                except:
+                    filtered_slots.append(slot)
+            data['available_slots'] = filtered_slots
+            
+        return Response(data)
+
+class BookMentorView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != 'mentee':
+            return Response({'error': 'Hanya mentee yang bisa booking'}, status=403)
         
-        mentee = user
         mentor_id = request.data.get('mentor_id')
         slot_id = request.data.get('slot_id')
         notes = request.data.get('notes', '')
         
         if not mentor_id or not slot_id:
-            return Response({'error': 'Mentor ID dan slot ID harus diisi'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'error': 'Mentor ID dan slot ID harus diisi'}, status=400)
+            
         try:
             mentor = User.objects.get(id=mentor_id, role='mentor', is_verified=True)
         except User.DoesNotExist:
-            return Response({'error': 'Mentor tidak ditemukan'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Ambil detail slot dari profil mentor
-        from mentors.models import MentorProfile
-        profile, created = MentorProfile.objects.get_or_create(user=mentor)
-        
-        selected_slot = None
-        for slot in profile.available_slots or []:
-            if str(slot.get('id')) == str(slot_id):
-                selected_slot = slot
-                break
+            return Response({'error': 'Mentor tidak ditemukan'}, status=404)
+            
+        profile, _ = MentorProfile.objects.get_or_create(user=mentor)
+        selected_slot = next((s for s in (profile.available_slots or []) if str(s.get('id')) == str(slot_id)), None)
         
         if not selected_slot:
-            return Response({'error': 'Slot jadwal tidak ditemukan'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Buat booking
-        from bookings.models import Booking
-        from datetime import datetime
-        
+            return Response({'error': 'Slot jadwal tidak ditemukan'}, status=404)
+            
         date_str = f"{selected_slot.get('date')} {selected_slot.get('time')}"
         try:
             booking_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
         except:
             booking_date = datetime.now()
-        
+            
         booking = Booking.objects.create(
-            mentee=mentee,
+            mentee=request.user,
             mentor=mentor,
-            mentee_name=mentee.username,
+            mentee_name=request.user.username,
             mentor_name=mentor.username,
             date=booking_date,
             notes=notes,
-            status='pending'
+            status='pending',
+            invoice_amount=profile.price_per_session
         )
         
         return Response({
@@ -130,139 +98,50 @@ def book_mentor(request):
             'status': booking.status,
             'date': booking.date
         })
-        
-    except Exception as e:
-        print(f"Error in book_mentor: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class MyBookingsView(generics.ListAPIView):
+    serializer_class = MenteeBookingSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def my_bookings(request):
-    user = request.user
-    if user.role != 'mentee':
-        return Response({'error': 'Akses ditolak'}, status=403)
+    def get_queryset(self):
+        if self.request.user.role != 'mentee':
+            return Booking.objects.none()
+        return Booking.objects.filter(mentee=self.request.user).order_by('-created_at')
 
-    bookings = Booking.objects.filter(mentee=user).order_by('-created_at')
+class MenteeOngoingSessionsView(generics.ListAPIView):
+    serializer_class = MenteeBookingSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-    result = []
-    for b in bookings:
-        # Cek payment status
-        payment_status = None
+    def get_queryset(self):
+        if self.request.user.role != 'mentee':
+            return Booking.objects.none()
+        return Booking.objects.filter(
+            mentee=self.request.user,
+            status__in=['accepted', 'ongoing']
+        ).order_by('date')
+
+class MenteeCompletedSessionsView(generics.ListAPIView):
+    serializer_class = MenteeBookingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.role != 'mentee':
+            return Booking.objects.none()
+        return Booking.objects.filter(
+            mentee=self.request.user,
+            status__in=['completed', 'paid']
+        ).order_by('-date')
+
+class PayBookingView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, booking_id):
+        if request.user.role != 'mentee':
+            return Response({'error': 'Hanya mentee yang bisa membayar'}, status=403)
         try:
-            from payments.models import Payment
-            p = Payment.objects.get(booking=b)
-            payment_status = p.status
-        except Exception:
-            pass
-
-        result.append({
-            'id':             b.id,
-            'mentor_name':    b.mentor_name,
-            'date':           b.date,
-            'notes':          b.notes,
-            'status':         b.status,
-            'status_display': b.get_status_display(),
-            'meeting_link':   b.meeting_link,
-            'invoice_amount': float(b.invoice_amount),
-            'payment_status': payment_status,
-            'created_at':     b.created_at,
-        })
-    return Response(result)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def mentee_ongoing_sessions(request):
-    user = request.user
-    if user.role != 'mentee':
-        return Response({'error': 'Akses ditolak'}, status=403)
-
-    # FIX: accepted + ongoing
-    bookings = Booking.objects.filter(
-        mentee=user,
-        status__in=['accepted', 'ongoing']
-    ).order_by('date')
-
-    return Response([{
-        'id':           b.id,
-        'mentor_name':  b.mentor_name,
-        'date':         b.date,
-        'status':       b.status,
-        'status_display': b.get_status_display(),
-        'meeting_link': b.meeting_link,
-        'notes':        b.notes,
-    } for b in bookings])
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def mentee_completed_sessions(request):
-    """Mendapatkan sesi yang sudah selesai untuk mentee"""
-    user = request.user
-    print(f"=== COMPLETED SESSIONS ===")
-    print(f"User: {user.username}")
-    
-    if user.role != 'mentee':
-        return Response({'error': 'Akses ditolak'}, status=status.HTTP_403_FORBIDDEN)
-    
-    # Ambil booking yang sudah completed ATAU paid
-    from bookings.models import Booking
-    bookings = Booking.objects.filter(
-        mentee=user,
-        status__in=['completed', 'paid']
-    ).order_by('-date')
-    
-    print(f"Found {bookings.count()} completed/paid sessions")
-    
-    result = []
-    for booking in bookings:
-        result.append({
-            'id': booking.id,
-            'mentor_name': booking.mentor_name,
-            'date': booking.date,
-            'notes': booking.notes,
-            'status': booking.status,  # 'completed' atau 'paid'
-            'price': 75000,
-            'invoice_amount': 75000
-        })
-    
-    return Response(result)
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def pay_booking(request, booking_id):
-    """Membayar booking"""
-    user = request.user
-    print(f"=== PAY BOOKING ===")
-    print(f"User: {user.username}, Role: {user.role}")
-    print(f"Booking ID: {booking_id}")
-    
-    if user.role != 'mentee':
-        return Response({'error': 'Hanya mentee yang bisa membayar'}, status=status.HTTP_403_FORBIDDEN)
-    
-    try:
-        booking = Booking.objects.get(id=booking_id, mentee=user)
-        print(f"Booking found: {booking.id}, Current status: {booking.status}")
-        
-        # Update status menjadi PAID
-        booking.status = 'paid'
-        booking.save()
-        
-        print(f"Booking {booking_id} updated to PAID")
-        
-        return Response({
-            'success': True,
-            'message': 'Pembayaran berhasil!',
-            'booking_id': booking.id,
-            'status': booking.status
-        })
-        
-    except Booking.DoesNotExist:
-        print(f"Booking {booking_id} not found for user {user.username}")
-        return Response({'error': 'Booking tidak ditemukan'}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            booking = Booking.objects.get(id=booking_id, mentee=request.user)
+            booking.status = 'paid'
+            booking.save()
+            return Response({'success': True, 'message': 'Pembayaran berhasil!', 'booking_id': booking.id, 'status': booking.status})
+        except Booking.DoesNotExist:
+            return Response({'error': 'Booking tidak ditemukan'}, status=404)

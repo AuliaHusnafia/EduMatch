@@ -1,0 +1,9 @@
+Django>=4.2.0
+djangorestframework
+django-cors-headers
+djangorestframework-simplejwt
+midtransclient
+django-filter
+drf-spectacular
+psycopg2-binary
+PyYAML

@@ -13,3 +13,7 @@ class MentorProfile(models.Model):
     
     def __str__(self):
         return f"Profile of {self.user.username}"
+
+    class Meta:
+        verbose_name = 'Mentor Profile'
+        verbose_name_plural = 'Mentor Profiles'
