@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: edumatch
+      POSTGRES_USER: edumatch
+      POSTGRES_PASSWORD: edumatch123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # ganti dari 5432 ke 5433 biar ga konflik
+
+  backend:
+    build: ./backend
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8001:8000"   # ganti dari 8000 ke 8001
+    depends_on:
+      - db
+    environment:
+      - DB_NAME=edumatch
+      - DB_USER=edumatch
+      - DB_PASSWORD=edumatch123
+      - DB_HOST=db
+      - DB_PORT=5432
+
+  frontend:
+    build: ./frontend
+    command: npm run dev -- --host
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3001:3000"   # ganti dari 3000 ke 3001
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
