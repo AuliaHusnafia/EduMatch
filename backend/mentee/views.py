@@ -131,16 +131,3 @@ class MenteeCompletedSessionsView(generics.ListAPIView):
             status__in=['completed', 'paid']
         ).order_by('-date')
 
-class PayBookingView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, booking_id):
-        if request.user.role != 'mentee':
-            return Response({'error': 'Hanya mentee yang bisa membayar'}, status=403)
-        try:
-            booking = Booking.objects.get(id=booking_id, mentee=request.user)
-            booking.status = 'paid'
-            booking.save()
-            return Response({'success': True, 'message': 'Pembayaran berhasil!', 'booking_id': booking.id, 'status': booking.status})
-        except Booking.DoesNotExist:
-            return Response({'error': 'Booking tidak ditemukan'}, status=404)

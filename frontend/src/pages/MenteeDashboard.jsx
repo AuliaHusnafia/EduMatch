@@ -163,30 +163,46 @@ export default function MenteeDashboard() {
   };
 
   const handlePayInvoice = async (bookingId) => {
-  if (payingId === bookingId) return;
-  
-  setPayingId(bookingId);
-  
-  try {
-    console.log('Processing payment for booking:', bookingId);
+    if (payingId === bookingId) return;
+    setPayingId(bookingId);
     
-    const response = await api.post(`/mentee/pay/${bookingId}/`, {});
-    console.log('Payment response:', response.data);
-    
-    if (response.data.success) {
-      showFlash('success', '✅ Pembayaran berhasil! Status telah diperbarui menjadi LUNAS.');
-      await fetchMySessions();
-      await fetchMyBookings();
-    } else {
-      showFlash('error', response.data.error || 'Pembayaran gagal');
+    try {
+      // 1. Dapatkan Snap Token dari Backend
+      const res = await api.post('/payments/pay/', { booking_id: bookingId });
+      const { token } = res.data;
+
+      if (!token) {
+        throw new Error('Gagal mendapatkan token pembayaran');
+      }
+
+      // 2. Tampilkan Midtrans Snap Pop-up
+      window.snap.pay(token, {
+        onSuccess: (result) => {
+          console.log('Success:', result);
+          showFlash('success', '✅ Pembayaran Berhasil! Tunggu konfirmasi sistem.');
+          refreshAll();
+        },
+        onPending: (result) => {
+          console.log('Pending:', result);
+          showFlash('warning', '⏳ Pembayaran sedang diproses. Segera selesaikan pembayaran Anda.');
+        },
+        onError: (result) => {
+          console.error('Error:', result);
+          showFlash('error', '❌ Pembayaran Gagal.');
+        },
+        onClose: () => {
+          console.log('User closed the popup without finishing the payment');
+          showFlash('info', 'ℹ️ Anda menutup jendela pembayaran.');
+        }
+      });
+
+    } catch (err) {
+      console.error('Payment Error:', err);
+      showFlash('error', err.response?.data?.error || err.message || 'Gagal memproses pembayaran');
+    } finally {
+      setPayingId(null);
     }
-  } catch (err) {
-    console.error('Payment error:', err);
-    showFlash('error', err.response?.data?.error || 'Gagal memproses pembayaran');
-  } finally {
-    setPayingId(null);
-  }
-};
+  };
 
   const handleLogout = () => { localStorage.clear(); navigate('/login'); };
 
