@@ -27,3 +27,6 @@ class Booking(models.Model):
     
     def __str__(self):
         return f"{self.mentee_name} → {self.mentor_name} ({self.date})"
+
+    class Meta:
+        ordering = ['-created_at']

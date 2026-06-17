@@ -2,11 +2,11 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('mentors/', views.list_mentors, name='list-mentors'),
-    path('mentors/<int:mentor_id>/', views.mentor_detail, name='mentor-detail'),
-    path('book/', views.book_mentor, name='book-mentor'),
-    path('my-bookings/', views.my_bookings, name='my-bookings'),
-    path('ongoing-sessions/', views.mentee_ongoing_sessions, name='mentee-ongoing-sessions'),
-    path('completed-sessions/', views.mentee_completed_sessions, name='mentee-completed-sessions'),
-    path('pay-booking/<int:booking_id>/', views.pay_booking, name='pay-booking'),  # ← Perhatikan ini
+    path('mentors/', views.MentorListView.as_view(), name='list-mentors'),
+    path('mentors/<int:mentor_id>/', views.MentorDetailView.as_view(), name='mentor-detail'),
+    path('book/', views.BookMentorView.as_view(), name='book-mentor'),
+    path('bookings/', views.MyBookingsView.as_view(), name='my-bookings'),
+    path('ongoing-sessions/', views.MenteeOngoingSessionsView.as_view(), name='mentee-ongoing-sessions'),
+    path('completed-sessions/', views.MenteeCompletedSessionsView.as_view(), name='mentee-completed-sessions'),
+    path('pay/<int:booking_id>/', views.PayBookingView.as_view(), name='pay-booking'),
 ]

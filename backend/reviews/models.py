@@ -14,3 +14,6 @@ class Review(models.Model):
     
     def __str__(self):
         return f"Review: {self.mentee_name} → {self.mentor_name} ({self.rating}⭐)"
+
+    class Meta:
+        ordering = ['-created_at']
