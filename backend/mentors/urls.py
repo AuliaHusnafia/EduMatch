@@ -2,15 +2,15 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('profile/', views.mentor_profile, name='mentor-profile'),
-    path('available-slots/', views.mentor_available_slots, name='mentor-available-slots'),
-    path('available-slots/<str:slot_id>/', views.mentor_delete_slot, name='mentor-delete-slot'),
-    path('booking-requests/', views.mentor_booking_requests, name='mentor-booking-requests'),
-    path('respond-booking/', views.mentor_respond_booking, name='mentor-respond-booking'),
-    path('active-sessions/', views.mentor_active_sessions, name='mentor-active-sessions'),
-    path('start-session/', views.mentor_start_session, name='mentor-start-session'),
-    path('complete-session/', views.mentor_complete_session, name='mentor-complete-session'),
-    path('reviews/', views.mentor_reviews, name='mentor-reviews'),
-    path('income/', views.mentor_income, name='mentor-income'),
-    path('withdraw/', views.mentor_withdraw, name='mentor-withdraw'),
+    path('profile/', views.MentorProfileView.as_view(), name='mentor-profile'),
+    path('available-slots/', views.MentorAvailableSlotsView.as_view(), name='mentor-available-slots'),
+    path('available-slots/<str:slot_id>/', views.MentorDeleteSlotView.as_view(), name='mentor-delete-slot'),
+    path('booking-requests/', views.MentorBookingRequestsView.as_view(), name='mentor-booking-requests'),
+    path('respond-booking/', views.MentorRespondBookingView.as_view(), name='mentor-respond-booking'),
+    path('active-sessions/', views.MentorActiveSessionsView.as_view(), name='mentor-active-sessions'),
+    path('start-session/', views.MentorStartSessionView.as_view(), name='mentor-start-session'),
+    path('complete-session/', views.MentorCompleteSessionView.as_view(), name='mentor-complete-session'),
+    path('reviews/', views.MentorReviewsView.as_view(), name='mentor-reviews'),
+    path('income/', views.MentorIncomeView.as_view(), name='mentor-income'),
+    path('withdraw/', views.MentorWithdrawView.as_view(), name='mentor-withdraw'),
 ]
