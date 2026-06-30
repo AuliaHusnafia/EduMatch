@@ -102,13 +102,21 @@ export default function AdminDashboard() {
         api.get('/admin/payments/'),
         api.get('/admin/withdraw-requests/'),
       ]);
+
+      const getList = (res) => {
+        if (!res || !res.data) return [];
+        if (res.data.results && Array.isArray(res.data.results)) return res.data.results;
+        if (Array.isArray(res.data)) return res.data;
+        return [];
+      };
+
       setStats(statsR.data || {});
-      setPendingMentors(pendR.data || []);
-      setAllMentors(mentR.data || []);
-      setAllMentees(menteR.data || []);
-      setAllBookings(bookR.data || []);
-      setAllPayments(payR.data || []);
-      setWithdrawals(wdR.data || []);
+      setPendingMentors(getList(pendR));
+      setAllMentors(getList(mentR));
+      setAllMentees(getList(menteR));
+      setAllBookings(getList(bookR));
+      setAllPayments(getList(payR));
+      setWithdrawals(getList(wdR));
       
       // Panggil fetchTransactions
       await fetchTransactions();
@@ -119,11 +127,18 @@ export default function AdminDashboard() {
   const fetchTransactions = async () => {
     try {
       const res = await api.get('/admin/transactions/');
-      setTransactions(res.data || []);
-      const paid = (res.data || []).filter(t => t.status === 'Berhasil');
+      const getList = (r) => {
+        if (!r || !r.data) return [];
+        if (r.data.results && Array.isArray(r.data.results)) return r.data.results;
+        if (Array.isArray(r.data)) return r.data;
+        return [];
+      };
+      const data = getList(res);
+      setTransactions(data);
+      const paid = data.filter(t => t.status === 'Berhasil');
       const total = paid.length;
-      const revenue = paid.reduce((sum, t) => sum + (t.nominal || 0), 0);
-      const commission = paid.reduce((sum, t) => sum + (t.komisi || 0), 0);
+      const revenue = paid.reduce((sum, t) => sum + Number(t.nominal || 0), 0);
+      const commission = paid.reduce((sum, t) => sum + Number(t.komisi || 0), 0);
       setTransactionStats({ total, revenue, commission });
     } catch (err) {
       console.error('Error fetching transactions:', err);
@@ -190,9 +205,9 @@ export default function AdminDashboard() {
   });
 
   const financeSummary = [
-    ['Total Pembayaran Masuk', `Rp ${allPayments.filter(p=>p.status==='success').reduce((s,p)=>s+(p.amount||0),0).toLocaleString('id-ID')}`],
-    ['Komisi Platform (10%)', `Rp ${(stats.platform_commission||0).toLocaleString('id-ID')}`],
-    ['Pencairan Disetujui', `Rp ${withdrawals.filter(w=>w.status==='approved').reduce((s,w)=>s+(w.amount||0),0).toLocaleString('id-ID')}`],
+    ['Total Pembayaran Masuk', `Rp ${allPayments.filter(p=>p.status==='success').reduce((s,p)=>s+Number(p.amount||0),0).toLocaleString('id-ID')}`],
+    ['Komisi Platform (10%)', `Rp ${Number(stats.platform_commission||0).toLocaleString('id-ID')}`],
+    ['Pencairan Disetujui', `Rp ${withdrawals.filter(w=>w.status==='approved').reduce((s,w)=>s+Number(w.amount||0),0).toLocaleString('id-ID')}`],
     ['Menunggu Pencairan', withdrawals.filter(w=>w.status==='pending').length + ' permintaan'],
   ];
 
@@ -291,7 +306,8 @@ export default function AdminDashboard() {
               ['Total Mentee',      stats.total_mentees,     'terdaftar'],
               ['Total Booking',     stats.total_bookings,    'semua status'],
               ['Sesi Lunas',        stats.paid_sessions,     'sudah dibayar'],
-              ['Komisi Platform',   `Rp ${(stats.platform_commission||0).toLocaleString('id-ID')}`, '10% dari transaksi'],
+              ['Komisi Platform',   `Rp ${Number(stats.platform_commission||0).toLocaleString('id-ID')}`, '10% dari transaksi'],
+
             ].map(([label, val, sub]) => (
               <div key={label} style={S.statCard}>
                 <div style={S.statLabel}>{label}</div>
@@ -326,7 +342,7 @@ export default function AdminDashboard() {
                         <td style={S.td}><code style={{ fontSize:'11px', background:'#f5f5f5', padding:'2px 6px', borderRadius:'4px' }}>{p.order_id}</code></td>
                         <td style={S.td}>{p.mentee_name}</td>
                         <td style={S.td}>{p.mentor_name}</td>
-                        <td style={S.td}><strong>Rp {p.amount?.toLocaleString('id-ID')}</strong></td>
+                        <td style={S.td}><strong>Rp {Number(p.amount||0).toLocaleString('id-ID')}</strong></td>
                         <td style={S.td}><Badge status={p.status} map={PAYMENT_STATUS} /></td>
                       </tr>
                     ))}
@@ -515,7 +531,7 @@ export default function AdminDashboard() {
                       <tr key={w.id}>
                         <td style={S.td}><strong>{w.mentor_name}</strong></td>
                         <td style={S.td}>{w.bank_name || '-'}</td>
-                        <td style={S.td}><strong>Rp {w.amount?.toLocaleString('id-ID')}</strong></td>
+                        <td style={S.td}><strong>Rp {Number(w.amount||0).toLocaleString('id-ID')}</strong></td>
                         <td style={S.td}><Badge status={w.status} map={WITHDRAW_STATUS} /></td>
                         <td style={S.td}>
                           {w.status === 'pending'
@@ -551,7 +567,7 @@ export default function AdminDashboard() {
                     ['Total Transaksi Sukses', allPayments.filter(p=>p.status==='success').length],
                     ['Total Transaksi Gagal', allPayments.filter(p=>p.status==='failed').length],
                     ['Transaksi Pending', allPayments.filter(p=>p.status==='pending').length],
-                    ['Sesi Menunggu Pembayaran', (stats.completed_sessions||0) - (stats.paid_sessions||0) || 0],
+                    ['Sesi Menunggu Pembayaran', (stats.completed_sessions||0)],
                   ].map(([label, val]) => (
                     <tr key={label}>
                       <td style={S.td}>{label}</td>
@@ -601,9 +617,9 @@ export default function AdminDashboard() {
                         <td style={S.td}><code style={{ fontSize:'11px', background:'#f5f5f5', padding:'2px 6px', borderRadius:'4px' }}>{tx.order_id}</code></td>
                         <td style={S.td}>{tx.mentee}</td>
                         <td style={S.td}>{tx.mentor}</td>
-                        <td style={S.td}><strong>Rp {tx.nominal?.toLocaleString()}</strong></td>
-                        <td style={S.td}>Rp {tx.komisi?.toLocaleString()}</td>
-                        <td style={S.td}>Rp {tx.mentor_dapat?.toLocaleString()}</td>
+                        <td style={S.td}><strong>Rp {Number(tx.nominal||0).toLocaleString('id-ID')}</strong></td>
+                        <td style={S.td}>Rp {Number(tx.komisi||0).toLocaleString('id-ID')}</td>
+                        <td style={S.td}>Rp {Number(tx.mentor_dapat||0).toLocaleString('id-ID')}</td>
                         <td style={S.td}>
                           <span style={{
                             background: tx.status === 'Berhasil' ? '#d4edda' : '#fff3cd',
@@ -661,7 +677,7 @@ export default function AdminDashboard() {
                 <strong>Mentor:</strong> {selectedWd.mentor_name}<br/>
                 <strong>Bank:</strong> {selectedWd.bank_name} — {selectedWd.account_number}<br/>
                 <strong>Atas Nama:</strong> {selectedWd.account_name}<br/>
-                <strong>Nominal:</strong> <span style={{ color:'#1e4a76', fontWeight:'800', fontSize:'16px' }}>Rp {selectedWd.amount?.toLocaleString('id-ID')}</span>
+                <strong>Nominal:</strong> <span style={{ color:'#1e4a76', fontWeight:'800', fontSize:'16px' }}>Rp {Number(selectedWd.amount||0).toLocaleString('id-ID')}</span>
               </div>
             </div>
             <label style={S.label}>Catatan Admin (opsional)</label>

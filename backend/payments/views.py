@@ -10,10 +10,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework import generics
 
 from bookings.models import Booking
 from mentors.models import MentorProfile
 from .models import Payment, WithdrawalRequest
+from .serializers import WithdrawalHistorySerializer
+
 
 PLATFORM_FEE_PCT = Decimal('0.10')
 
@@ -263,59 +266,54 @@ def request_withdrawal(request):
     })
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def withdrawal_history(request):
-    """Riwayat pencairan mentor"""
-    user = request.user
-    if user.role != 'mentor':
-        return Response({'error': 'Akses ditolak'}, status=403)
+class WithdrawalHistoryView(generics.ListAPIView):
+    """Riwayat pencairan mentor — pagination + filter status"""
+    serializer_class = WithdrawalHistorySerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['status']
+    ordering_fields = ['created_at']
 
-    withdrawals = WithdrawalRequest.objects.filter(
-        mentor=user
-    ).order_by('-created_at')
+    def get_queryset(self):
+        if self.request.user.role != 'mentor':
+            return WithdrawalRequest.objects.none()
+        return WithdrawalRequest.objects.filter(mentor=self.request.user).order_by('-created_at')
 
-    result = []
-    for w in withdrawals:
-        result.append({
-            'id':             w.id,
-            'amount':         int(w.net_amount),
-            'bank_name':      w.bank_name,
-            'account_number': w.account_number,
-            'account_name':   w.account_name,
-            'status':         w.status,
-            'status_display': w.get_status_display(),
-            'admin_note':     w.admin_note,
-            'created_at':     w.created_at,
-        })
-
-    return Response(result)
-
+# SESUDAH
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def simulate_payment_success(request):
-    """DEV ONLY"""
+    """Simulasi webhook Midtrans untuk environment tanpa webhook publik — hanya aktif saat DEBUG=True"""
     if not settings.DEBUG:
-        return Response({'error': 'Hanya di mode DEBUG'}, status=403)
+        return Response({'error': 'Endpoint ini hanya tersedia di mode DEBUG'}, status=403)
+
     booking_id = request.data.get('booking_id')
     try:
         booking = Booking.objects.get(id=booking_id, mentee=request.user)
-        # Hapus payment pending lama, buat baru yg success
-        Payment.objects.filter(booking=booking, status='pending').delete()
-        payment, _ = Payment.objects.get_or_create(
-            booking=booking,
-            defaults={
-                'order_id': f"SIM-{booking.id}",
-                'amount': int(booking.invoice_amount),
-                'platform_fee': int(booking.invoice_amount * 0.10),
-                'mentor_revenue': int(booking.invoice_amount * 0.90),
-            }
-        )
+        try:
+            payment = Payment.objects.get(booking=booking)
+        except Payment.DoesNotExist:
+            payment = Payment.objects.create(
+                booking=booking,
+                order_id=f"SIM-{booking.id}",
+                amount=booking.invoice_amount,
+                platform_fee=int(booking.invoice_amount * Decimal('0.10')),
+                mentor_revenue=int(booking.invoice_amount * Decimal('0.90')),
+            )
+        
         payment.status = 'success'
         payment.paid_at = timezone.now()
         payment.save()
         booking.status = 'paid'
         booking.save()
+        
+        try:
+            from sessions.models import MentoringSession
+            session = MentoringSession.objects.get(booking=booking)
+            session.status = 'completed'
+            session.save()
+        except Exception:
+            pass
+            
         return Response({'message': 'Simulasi berhasil', 'booking_id': booking_id})
-    except (Booking.DoesNotExist, Payment.DoesNotExist) as e:
+    except (Booking.DoesNotExist, Exception) as e:
         return Response({'error': str(e)}, status=404)
