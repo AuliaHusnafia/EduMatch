@@ -7,6 +7,6 @@ urlpatterns = [
     path('webhook/', views.midtrans_notification, name='midtrans-webhook'),
     path('earnings/', views.mentor_earnings, name='mentor-earnings'),
     path('withdraw/', views.request_withdrawal, name='request-withdrawal'),
-    path('withdraw/history/', views.withdrawal_history, name='withdrawal-history'),
+    path('withdraw/history/', views.WithdrawalHistoryView.as_view(), name='withdrawal-history'),
     path('simulate-success/', views.simulate_payment_success, name='simulate-success'),
 ]

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
@@ -8,11 +9,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    
+    email = serializers.EmailField(
+        validators=[UniqueValidator(queryset=User.objects.all(), message="Email sudah terdaftar")]
+    )
+
     class Meta:
         model = User
         fields = ['username', 'email', 'password', 'role', 'university', 'phone']
-    
+
     def create(self, validated_data):
         # Jika mentor, set is_verified = False (perlu verifikasi admin)
         role = validated_data.get('role', 'mentee')

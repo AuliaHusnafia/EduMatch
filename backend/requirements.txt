@@ -2,8 +2,11 @@ Django>=4.2.0
 djangorestframework
 django-cors-headers
 djangorestframework-simplejwt
-midtransclient
 django-filter
 drf-spectacular
+midtransclient
+gunicorn
+whitenoise
+dj-database-url
 psycopg2-binary
-PyYAML
+python-decouple

@@ -1,30 +1,22 @@
 import axios from 'axios';
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
-  headers: {
-    'Content-Type': 'application/json',
-  }
+  baseURL: BASE_URL,
 });
 
-// Interceptor untuk menambahkan token ke setiap request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log('✅ Token attached:', token.substring(0, 30) + '...');
-    } else {
-      console.log('❌ No token found');
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Interceptor untuk handle token expired
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -34,7 +26,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          const response = await axios.post('http://127.0.0.1:8000/api/auth/refresh/', {
+          const response = await axios.post(`${BASE_URL}/auth/refresh/`, {
             refresh: refreshToken
           });
           localStorage.setItem('access_token', response.data.access);

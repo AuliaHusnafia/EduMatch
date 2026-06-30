@@ -20,6 +20,9 @@ class MentorProfileView(generics.RetrieveUpdateAPIView):
             return Response({'error': 'Anda bukan mentor'}, status=403)
         serializer.save()
 
+# SESUDAH
+HARI_VALID = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+
 class MentorAvailableSlotsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -33,18 +36,28 @@ class MentorAvailableSlotsView(views.APIView):
         if request.user.role != 'mentor':
             return Response({'error': 'Anda bukan mentor'}, status=403)
         profile, _ = MentorProfile.objects.get_or_create(user=request.user)
-        date = request.data.get('date')
+
+        day = request.data.get('day')
         time = request.data.get('time')
-        if not date or not time:
-            return Response({'error': 'Tanggal dan waktu harus diisi'}, status=400)
-        
+
+        if not day or not time:
+            return Response({'error': 'Hari dan waktu harus diisi'}, status=400)
+
+        if day not in HARI_VALID:
+            return Response({'error': f'Hari tidak valid. Pilih: {", ".join(HARI_VALID)}'}, status=400)
+
         if not profile.available_slots:
             profile.available_slots = []
-        
-        new_slot = {'id': str(uuid.uuid4()), 'date': date, 'time': time}
+
+        # Cek duplikat
+        for s in profile.available_slots:
+            if s.get('day') == day and s.get('time') == time:
+                return Response({'error': f'Jadwal {day} {time} sudah ada'}, status=400)
+
+        new_slot = {'id': str(uuid.uuid4()), 'day': day, 'time': time}
         profile.available_slots.append(new_slot)
         profile.save()
-        return Response({'message': 'Jadwal berhasil ditambahkan', 'slot': new_slot})
+        return Response({'message': f'Jadwal {day} {time} berhasil ditambahkan', 'slot': new_slot})
 
 class MentorDeleteSlotView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -54,7 +67,10 @@ class MentorDeleteSlotView(views.APIView):
             return Response({'error': 'Anda bukan mentor'}, status=403)
         profile, _ = MentorProfile.objects.get_or_create(user=request.user)
         if profile.available_slots:
+            before = len(profile.available_slots)
             profile.available_slots = [s for s in profile.available_slots if s.get('id') != slot_id]
+            if len(profile.available_slots) == before:
+                return Response({'error': 'Jadwal tidak ditemukan'}, status=404)
             profile.save()
         return Response({'message': 'Jadwal berhasil dihapus'})
 
@@ -135,19 +151,34 @@ class MentorCompleteSessionView(views.APIView):
         except Booking.DoesNotExist:
             return Response({'error': 'Booking tidak ditemukan'}, status=404)
 
-class MentorReviewsView(views.APIView):
+# SESUDAH
+class MentorReviewsView(generics.ListAPIView):
+    """List review yang diterima mentor — pagination + filter by rating"""
     permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['rating']
+    ordering_fields = ['created_at', 'rating']
 
-    def get(self, request):
-        if request.user.role != 'mentor':
-            return Response({'error': 'Anda bukan mentor'}, status=403)
+    def get_serializer_class(self):
+        from rest_framework import serializers as drf_serializers
         from reviews.models import Review
-        reviews = Review.objects.filter(mentor=request.user).order_by('-created_at')
-        return Response([{
-            'id': r.id, 'mentee_name': r.mentee_name,
-            'rating': r.rating, 'comment': r.comment,
-            'created_at': r.created_at.strftime('%d %b %Y'),
-        } for r in reviews])
+
+        class MentorReviewSerializer(drf_serializers.ModelSerializer):
+            created_at = drf_serializers.SerializerMethodField()
+
+            class Meta:
+                model = Review
+                fields = ['id', 'mentee_name', 'rating', 'comment', 'created_at']
+
+            def get_created_at(self, obj):
+                return obj.created_at.strftime('%d %b %Y')
+
+        return MentorReviewSerializer
+
+    def get_queryset(self):
+        from reviews.models import Review
+        if self.request.user.role != 'mentor':
+            return Review.objects.none()
+        return Review.objects.filter(mentor=self.request.user).order_by('-created_at')
 
 class MentorIncomeView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]

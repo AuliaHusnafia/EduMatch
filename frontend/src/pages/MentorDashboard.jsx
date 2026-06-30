@@ -43,8 +43,16 @@ export default function MentorDashboard() {
   const [activeSessions, setActiveSessions] = useState([]);
   const [reviews, setReviews]               = useState([]);
   const [earnings, setEarnings]             = useState({ total:0, available:0, withdrawn:0, unpaid_sessions:0 });
+
+  const getList = (res) => {
+    if (!res || !res.data) return [];
+    if (res.data.results && Array.isArray(res.data.results)) return res.data.results;
+    if (Array.isArray(res.data)) return res.data;
+    return [];
+  };
   const [showSlotModal, setShowSlotModal]   = useState(false);
-  const [newSlot, setNewSlot]               = useState({ date:'', time:'' });
+  const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+  const [newSlot, setNewSlot]               = useState({ day:'Senin', time:'09:00' });
   const [showMeetModal, setShowMeetModal]   = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [meetLink, setMeetLink]             = useState('');
@@ -76,11 +84,12 @@ export default function MentorDashboard() {
         api.get('/mentor/reviews/'),
         api.get('/mentor/income/'),
       ]);
+      
       setUser(userR.data);
-      setBookingRequests(bookR.data || []);
-      setActiveSessions(sessR.data || []);
+      setBookingRequests(getList(bookR));
+      setActiveSessions(getList(sessR));
       if (profR.data) setProfile({ skills:profR.data.skills||'', price_per_session:profR.data.price_per_session||75000, bio:profR.data.bio||'', education:profR.data.education||'', available_slots:profR.data.available_slots||[] });
-      setReviews(revR.data || []);
+      setReviews(getList(revR));
       setEarnings(earnR.data || { total:0, available:0, withdrawn:0, unpaid_sessions:0 });
     } catch (e) { showFlash('error', 'Gagal memuat data'); }
     finally { setLoading(false); }
@@ -94,11 +103,11 @@ export default function MentorDashboard() {
 
   const handleAddSlot = async (e) => {
     e.preventDefault();
-    if (!newSlot.date || !newSlot.time) { showFlash('error', 'Pilih tanggal dan waktu'); return; }
+    if (!newSlot.day || !newSlot.time) { showFlash('error', 'Pilih hari dan waktu'); return; }
     try {
       await api.post('/mentor/available-slots/', newSlot);
-      showFlash('success', 'Jadwal berhasil ditambahkan!');
-      setShowSlotModal(false); setNewSlot({ date:'', time:'' }); fetchAll();
+      showFlash('success', `Jadwal ${newSlot.day} ${newSlot.time} berhasil ditambahkan!`);
+      setShowSlotModal(false); setNewSlot({ day:'Senin', time:'09:00' }); fetchAll();
     } catch (e) { showFlash('error', e.response?.data?.error || 'Gagal menambahkan jadwal'); }
   };
 
@@ -137,13 +146,11 @@ export default function MentorDashboard() {
             });
             console.log('Complete session response:', response.data);
             
-            setSuccessMessage('Sesi selesai! Pendapatan akan masuk ke saldo Anda.');
-            await fetchAllData(); // Refresh data
-            setTimeout(() => setSuccessMessage(''), 3000);
+            showFlash('success', 'Sesi selesai! Pendapatan akan masuk ke saldo Anda.');
+            await fetchAll(); // Refresh data
         } catch (err) {
             console.error('Error:', err);
-            setErrorMessage(err.response?.data?.error || 'Gagal menyelesaikan sesi');
-            setTimeout(() => setErrorMessage(''), 3000);
+            showFlash('error', err.response?.data?.error || 'Gagal menyelesaikan sesi');
         }
     }
 };
@@ -159,12 +166,16 @@ export default function MentorDashboard() {
     } catch (e) { showFlash('error', e.response?.data?.error || 'Gagal mengajukan pencairan'); }
   };
 
-  const avgRating = reviews.length > 0 ? (reviews.reduce((s,r) => s + r.rating, 0) / reviews.length).toFixed(1) : '0.0';
+  const safeReviews = Array.isArray(reviews) ? reviews : [];
+  const safeActiveSessions = Array.isArray(activeSessions) ? activeSessions : [];
+  const safeBookingRequests = Array.isArray(bookingRequests) ? bookingRequests : [];
+
+  const avgRating = safeReviews.length > 0 ? (safeReviews.reduce((s,r) => s + r.rating, 0) / safeReviews.length).toFixed(1) : '0.0';
 
   // Pisahkan sesi berdasarkan status
-  const ongoingSess   = activeSessions.filter(s => ['accepted','ongoing'].includes(s.status));
-  const historySess   = activeSessions.filter(s => ['completed','paid'].includes(s.status));
-  const pendingCount  = bookingRequests.length;
+  const ongoingSess   = safeActiveSessions.filter(s => ['accepted','ongoing'].includes(s.status));
+  const historySess   = safeActiveSessions.filter(s => ['completed','paid'].includes(s.status));
+  const pendingCount  = safeBookingRequests.length;
   const ongoingCount  = ongoingSess.length;
 
   const S = {
@@ -321,13 +332,50 @@ export default function MentorDashboard() {
             </div>
             {profile.available_slots.length === 0
               ? <div style={S.empty}><Ic.Calendar /><p style={{ marginTop:'10px' }}>Belum ada jadwal. Tambahkan jadwal ketersediaanmu.</p></div>
-              : profile.available_slots.map(slot => (
-                <div key={slot.id} style={S.slotRow}>
-                  <span style={{ fontWeight:'600', color:'#1e4a76' }}>📅 {slot.date} — {slot.time}</span>
-                  <button style={S.btnRed} onClick={() => handleDeleteSlot(slot.id)}><Ic.Trash /> Hapus</button>
-                </div>
-              ))
+              : HARI.map(hari => {
+                  const slotsHariIni = profile.available_slots.filter(s => s.day === hari);
+                  if (slotsHariIni.length === 0) return null;
+                  return (
+                    <div key={hari} style={{ marginBottom:'14px' }}>
+                      <p style={{ fontSize:'12px', fontWeight:'700', color:'#1e4a76', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'8px' }}>{hari}</p>
+                      {slotsHariIni.map(slot => (
+                        <div key={slot.id} style={S.slotRow}>
+                          <span style={{ fontWeight:'600', color:'#1e4a76' }}>🕐 {slot.time} WIB — setiap minggu</span>
+                          <button style={S.btnRed} onClick={() => handleDeleteSlot(slot.id)}><Ic.Trash /> Hapus</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })
             }
+
+{showSlotModal && (
+  <div style={S.overlay} onClick={() => setShowSlotModal(false)}>
+    <div style={S.modal} onClick={e => e.stopPropagation()}>
+      <div style={S.mTitle}>Tambah Jadwal Mingguan</div>
+      <div style={S.mSub}>Jadwal ini akan berulang otomatis setiap minggu — tidak perlu bikin ulang.</div>
+      <form onSubmit={handleAddSlot}>
+        <div style={S.fGroup}>
+          <label style={S.label}>Hari</label>
+          <select value={newSlot.day} onChange={e => setNewSlot({ ...newSlot, day: e.target.value })} style={S.input} required>
+            {HARI.map(h => <option key={h} value={h}>{h}</option>)}
+          </select>
+        </div>
+        <div style={S.fGroup}>
+          <label style={S.label}>Waktu</label>
+          <select value={newSlot.time} onChange={e => setNewSlot({ ...newSlot, time: e.target.value })} style={S.input} required>
+            {['07:00','08:00','09:00','10:00','11:00','13:00','14:00','15:00','16:00','19:00','20:00','21:00'].map(t => <option key={t} value={t}>{t} WIB</option>)}
+          </select>
+        </div>
+        <div style={{ display:'flex', gap:'10px', justifyContent:'flex-end' }}>
+          <button type="button" style={S.btnOut} onClick={() => setShowSlotModal(false)}>Batal</button>
+          <button type="submit" style={S.btnPri}>Simpan Jadwal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
+
           </div>
         )}
 

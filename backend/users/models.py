@@ -7,6 +7,7 @@ class User(AbstractUser):
         ('mentor', 'Mentor'),
         ('admin', 'Admin'),
     )
+    email = models.EmailField(unique=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='mentee')
     is_verified = models.BooleanField(default=False)
     university = models.CharField(max_length=200, blank=True)

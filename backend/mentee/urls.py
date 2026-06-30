@@ -8,5 +8,4 @@ urlpatterns = [
     path('bookings/', views.MyBookingsView.as_view(), name='my-bookings'),
     path('ongoing-sessions/', views.MenteeOngoingSessionsView.as_view(), name='mentee-ongoing-sessions'),
     path('completed-sessions/', views.MenteeCompletedSessionsView.as_view(), name='mentee-completed-sessions'),
-    path('pay/<int:booking_id>/', views.PayBookingView.as_view(), name='pay-booking'),
 ]

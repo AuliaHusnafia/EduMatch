@@ -1,6 +1,5 @@
 from rest_framework import generics, permissions, status, views
 from rest_framework.response import Response
-from django.db.models import Q
 from users.models import User
 from mentors.models import MentorProfile
 from bookings.models import Booking
@@ -102,11 +101,46 @@ class BookMentorView(views.APIView):
 class MyBookingsView(generics.ListAPIView):
     serializer_class = MenteeBookingSerializer
     permission_classes = [permissions.IsAuthenticated]
-
+ 
+    def list(self, request, *args, **kwargs):
+        if request.user.role != 'mentee':
+            return Response({'error': 'Hanya mentee yang bisa akses endpoint ini'}, status=403)
+        return super().list(request, *args, **kwargs)
+ 
     def get_queryset(self):
-        if self.request.user.role != 'mentee':
-            return Booking.objects.none()
         return Booking.objects.filter(mentee=self.request.user).order_by('-created_at')
+ 
+ 
+class MenteeOngoingSessionsView(generics.ListAPIView):
+    serializer_class = MenteeBookingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+ 
+    def list(self, request, *args, **kwargs):
+        if request.user.role != 'mentee':
+            return Response({'error': 'Hanya mentee yang bisa akses endpoint ini'}, status=403)
+        return super().list(request, *args, **kwargs)
+ 
+    def get_queryset(self):
+        return Booking.objects.filter(
+            mentee=self.request.user,
+            status__in=['accepted', 'ongoing']
+        ).order_by('date')
+ 
+ 
+class MenteeCompletedSessionsView(generics.ListAPIView):
+    serializer_class = MenteeBookingSerializer
+    permission_classes = [permissions.IsAuthenticated]
+ 
+    def list(self, request, *args, **kwargs):
+        if request.user.role != 'mentee':
+            return Response({'error': 'Hanya mentee yang bisa akses endpoint ini'}, status=403)
+        return super().list(request, *args, **kwargs)
+ 
+    def get_queryset(self):
+        return Booking.objects.filter(
+            mentee=self.request.user,
+            status__in=['completed', 'paid']
+        ).order_by('-date')
 
 class MenteeOngoingSessionsView(generics.ListAPIView):
     serializer_class = MenteeBookingSerializer
@@ -132,16 +166,3 @@ class MenteeCompletedSessionsView(generics.ListAPIView):
             status__in=['completed', 'paid']
         ).order_by('-date')
 
-class PayBookingView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, booking_id):
-        if request.user.role != 'mentee':
-            return Response({'error': 'Hanya mentee yang bisa membayar'}, status=403)
-        try:
-            booking = Booking.objects.get(id=booking_id, mentee=request.user)
-            booking.status = 'paid'
-            booking.save()
-            return Response({'success': True, 'message': 'Pembayaran berhasil!', 'booking_id': booking.id, 'status': booking.status})
-        except Booking.DoesNotExist:
-            return Response({'error': 'Booking tidak ditemukan'}, status=404)

@@ -64,3 +64,8 @@ htmlcov/
 *.egg-info/
 dist/
 build/
+
+*.env
+staticfiles/
+node_modules/
+
